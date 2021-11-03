@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<title>Spring Boot with Redis Caching</title>
+</head>
+<body>
+	<h1>Java Spring Boot on ECS Fargate with Redis Caching</h1>
+
+	<div>
+		<h2>Cached Method Call</h2>
+		Time elapsed calling the cached method: <span th:text="${duration}" />ms.
+		<a th:href="@{/cacheable}">Reload</a>
+	</div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<title>Spring Boot with Redis Caching</title>
+</head>
+<body>
+	<h1>Java Spring Boot on ECS Fargate with Redis Caching</h1>
+	<br/>
+	<div>
+		<h2>Cache Examples</h2>
+
+		<h3>View Count</h3>
+		You have viewed this page <span th:text="${views}" /> time(s) during this session.
+		<br/>
+		Data pulled from the active session (<span th:text="${sessionId}" />), stored in Redis.
+		<form action="#" th:action="@{/destroy}" method="post">
+			<p><input type="submit" value="Destroy Session" /></p>
+		</form>
+
+		<h3>Call Cached Method</h3>
+		<p>Click 'call' to perform a GET request against the cached method. Expect the first call to take 5 seconds and subsiquent calls to be loaded from Redis cache.</p>
+		<form action="#" th:action="@{/cacheable}" method="get">
+			<p><input type="submit" value="Call" /></p>
+		</form>
+		<p>Use the below evict button to evict the cache stored in Redis.</p>
+		<form action="#" th:action="@{/evict}" method="post">
+			<p><input type="submit" value="Evict Cache" /></p>
+		</form>
+	</div>
+	<br/>
+	<div>
+		<h2>Application Details</h2>
+		<h3>Fargate TaskARN</h3>
+		<span th:text="${taskArn}" />
+
+		<h3>Container Image</h3>
+		<span th:text="${image}" />
+	</div>
+</body>
+</html>

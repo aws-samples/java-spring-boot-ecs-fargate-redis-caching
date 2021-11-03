@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create Cloud Map resources.
+
+Parameters:
+  PrivateNamespace:
+    Type: String
+    Default: my-demo.local
+  VPCStackName:
+    Description: Name of the ECS cluster stack to deploy to
+    Type: String
+    Default: demo-stack-VpcStack-
+Resources:
+  PrivateDnsNamespace:
+      Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+      Properties:
+          Name: !Ref PrivateNamespace
+          Vpc:
+            Fn::ImportValue:
+              !Sub "${VPCStackName}-VpcId"
+Outputs:
+  PrivateNamespaceId:
+    Description: The address of the Redis group.
+    Value: !Ref PrivateDnsNamespace
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateNamespace"

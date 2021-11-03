@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Main CF template for creating the infrastructure
+
+Parameters:
+  #VPC Stack
+  CreateVPC:
+    Type: String
+    Description: Set true if you want to use existing vpc.
+    Default: true
+    AllowedValues: [true, false]
+  VPCName:
+    Type: String
+    Description: The name of the VPC (Required).
+    Default: vpc-demo
+  VpcCidr:
+    Type: String
+    Description: The CIDR block for the VPC.
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+    Default: 10.0.0.0/16
+  PublicSubnet1Cidr:
+    Type: String
+    Description: The CIDR block for the public subnet located in Availability Zone 1.
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+    Default: 10.0.0.0/24
+  PublicSubnet2Cidr:
+    Type: String
+    Description: The CIDR block for the public subnet located in Availability Zone 2.
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+    Default: 10.0.1.0/24
+  PrivateSubnet1Cidr:
+    Type: String
+    Description: The CIDR block for the private subnet located in Availability Zone 1.
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+    Default: 10.0.2.0/24
+  PrivateSubnet2Cidr:
+    Type: String
+    Description: The CIDR block for the private subnet located in Availability Zone 2.
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
+    Default: 10.0.3.0/24
+  #CloudMap Stack
+  CreateCloudMap:
+    Type: String
+    Description: Create a private namespace to allow services to communicate easily
+    Default: true
+    AllowedValues: [true, false]
+  PrivateNamespace:
+    Type: String
+    Default: my-demo.local  
+  #ECS Stack
+  CreateEcsCluster:
+    Type: String
+    Description: Create ECS cluster.
+    Default: true
+    AllowedValues: [true, false]
+  EcsClusterName:
+    Description: The name of the cluster.
+    Type: String
+    Default: ecsDemo
+  AllowedCidrIp:
+    Description: The CIDR/IP that the load balancer accepts connections from
+    Type: String
+    Default: 0.0.0.0/0
+  UseHttps:
+    Type: String
+    Description: Use HTTPS in external loadbalancer
+    Default: false
+    AllowedValues: [true, false]
+  DomainCertificateArn:
+    Description: Cluster domain certificate arn, required only when UseHttps is true
+    Type: String
+    Default: ''  
+  #Redis Stack
+  CreateRedis:
+    Type: String
+    Description: Create a Redis cluster for service state management
+    Default: true
+    AllowedValues: [true, false]
+  RedisInstanceClass:
+    Type: String
+    Default: cache.t3.micro
+  #ECR Stack
+  CreateEcr:
+    Type: String
+    Description: Create an Elastic Container Registry
+    AllowedValues: [true, false]
+    Default: true
+  RepositoryName:
+    Description: The name of the ECR Repository.
+    Type: String
+    Default: ecr-demo
+
+Conditions:
+  EnableVpcStack: !Equals [true, !Ref CreateVPC]
+  EnableCloudMapStack: !Equals [true, !Ref CreateCloudMap]
+  EnableEcsStack: !Equals [true, !Ref CreateEcsCluster]
+  EnableRedisStack: !Equals [true, !Ref CreateRedis]
+  EnableEcrStack: !Equals [true, !Ref CreateEcr]
+Resources:
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: EnableVpcStack
+    Properties:
+      TemplateURL: "vpc.yaml"
+      TimeoutInMinutes: 20
+      Parameters:
+        VpcCidr: !Ref VpcCidr
+        VPCName: !Ref VPCName
+        PublicSubnet1Cidr: !Ref PublicSubnet1Cidr
+        PublicSubnet2Cidr: !Ref PublicSubnet2Cidr
+        PrivateSubnet1Cidr: !Ref PrivateSubnet1Cidr
+        PrivateSubnet2Cidr: !Ref PrivateSubnet2Cidr
+  CloudMapStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: EnableCloudMapStack
+    Properties:
+      TemplateURL: "cloud-map.yaml"
+      TimeoutInMinutes: 20
+      Parameters:
+        PrivateNamespace: !Ref PrivateNamespace
+        VPCStackName: !GetAtt VpcStack.Outputs.StackName
+  EcsStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: EnableEcsStack
+    Properties:
+      TemplateURL: "ecs.yaml"
+      TimeoutInMinutes: 20
+      Parameters:
+        EcsClusterName: !Ref EcsClusterName
+        AllowedCidrIp: !Ref AllowedCidrIp
+        UseHttps: !Ref UseHttps
+        DomainCertificateArn: !Ref DomainCertificateArn
+        VPCStackName: !GetAtt VpcStack.Outputs.StackName
+  RedisStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: EnableRedisStack
+    Properties:
+      TemplateURL: "redis.yaml"
+      TimeoutInMinutes: 20
+      Parameters:
+        RedisInstanceClass: !Ref RedisInstanceClass
+        VPCStackName: !GetAtt VpcStack.Outputs.StackName
+  EcrStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: EnableEcrStack
+    Properties:
+      TemplateURL: "ecr.yaml"
+      TimeoutInMinutes: 20
+      Parameters:
+        RepositoryName: !Ref RepositoryName
+Outputs:
+  VpcId:
+    Description: The VPC that this cluster utilises
+    Value: !GetAtt VpcStack.Outputs.VpcId
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
+
+  VpcCidr:
+    Description: The VPC Cidr Range
+    Condition: EnableVpcStack
+    Value: !GetAtt VpcStack.Outputs.VpcCidr
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcCidr"
+
+  PrivateSubnetAz1:
+    Description: The first private subnet for this cluster
+    Condition: EnableVpcStack
+    Value: !GetAtt VpcStack.Outputs.PrivateSubnetAz1
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetAz1"
+
+  PrivateSubnetAz2:
+    Description: The first private subnet for this cluster
+    Condition: EnableVpcStack
+    Value: !GetAtt VpcStack.Outputs.PrivateSubnetAz2
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetAz2"
+
+  PublicSubnetAZ1:
+    Description: The first public subnet for this cluster
+    Condition: EnableVpcStack
+    Value: !GetAtt VpcStack.Outputs.PublicSubnetAZ1
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnetAz1"
+
+  PublicSubnetAZ2:
+    Description: The first public subnet for this cluster
+    Condition: EnableVpcStack
+    Value: !GetAtt VpcStack.Outputs.PublicSubnetAZ2
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnetAz2"
+
+  EcsClusterName:
+    Description: ECS Cluster Name
+    Condition: EnableEcsStack
+    Value: !GetAtt EcsStack.Outputs.EcsClusterName
+    Export:
+      Name: !Sub "${AWS::StackName}-EcsClusterName"
+
+  LoadBalancerListener:
+    Description: The load balancer listener that will be used by the service
+    Condition: EnableEcsStack
+    Value: !GetAtt EcsStack.Outputs.LoadBalancerListener
+    Export:
+      Name: !Sub "${AWS::StackName}-LoadBalancerListener"
+
+  LoadBalancerSecurityGroup:
+    Description: The load balancer security group
+    Condition: EnableEcsStack
+    Value: !GetAtt EcsStack.Outputs.LoadBalancerSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-LoadBalancerSecurityGroup"
+
+  RepositoryUri:
+    Description: ECR RepositoryUri
+    Condition: EnableEcrStack
+    Value: !GetAtt EcrStack.Outputs.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-RepositoryUri"
+
+  RedisClusterAddress:
+    Description: The address of the Redis group.
+    Condition: EnableRedisStack
+    Value: !GetAtt RedisStack.Outputs.RedisClusterAddress
+    Export:
+      Name: !Sub "${AWS::StackName}-RedisAddress"

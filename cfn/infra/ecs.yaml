@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create ECS resources.
+
+Parameters:
+  EcsClusterName:
+    Description: The name of the cluster.
+    Type: String
+    Default: ecr-demo
+  AllowedCidrIp:
+    Description: The CIDR/IP that the load balancer accepts connections from
+    Type: String
+    Default: 0.0.0.0/0
+  UseHttps:
+    Type: String
+    Description: Use HTTPS in external loadbalancer
+    Default: false
+    AllowedValues: [true, false]
+  DomainCertificateArn:
+    Description: Cluster domain certificate arn, required only when UseHttps is true
+    Type: String
+    Default: ''
+  VPCStackName:
+    Description: Name of the ECS cluster stack to deploy to
+    Type: String
+    Default: demo-stack-VpcStack-
+    
+Conditions:
+  IsHttpsEnabled: !Equals [True, !Ref UseHttps]
+Resources:
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref EcsClusterName
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${EcsClusterName}-alb"
+      Subnets:
+          - Fn::ImportValue:
+              !Sub "${VPCStackName}-PublicSubnetAz1"
+          - Fn::ImportValue:
+              !Sub "${VPCStackName}-PublicSubnetAz2"
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Scheme: internet-facing
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: !If [IsHttpsEnabled, 443, 80]
+      Protocol: !If [IsHttpsEnabled, HTTPS, HTTP]
+      Certificates:
+        !If
+          - IsHttpsEnabled
+          -
+            [ CertificateArn: !Ref DomainCertificateArn ]
+          - !Ref "AWS::NoValue"
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: "text/plain"
+            MessageBody: "Service Unavailable"
+            StatusCode: "503"
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${VPCStackName}-VpcId"
+      GroupDescription: "SGP for Application Loadbalancer"
+      SecurityGroupIngress:
+        - CidrIp: !Ref AllowedCidrIp
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+
+Outputs:
+
+  StackName:
+    Description: ECS nested stack name
+    Value: !Sub "${AWS::StackName}"
+
+  EcsClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref EcsCluster
+    Export:
+      Name: !Sub "${AWS::StackName}-EcsClusterName"
+
+  LoadBalancerListener:
+    Description: The load balancer listener that will be used by the service
+    Value: !Ref LoadBalancerListener
+    Export:
+      Name: !Sub "${AWS::StackName}-LoadBalancerListener"
+
+  LoadBalancerSecurityGroup:
+    Description: The load balancer security group
+    Value: !Ref AlbSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-LoadBalancerSecurityGroup"

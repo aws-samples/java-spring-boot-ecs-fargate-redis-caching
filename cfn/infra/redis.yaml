@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create Redis resources.
+
+Parameters:
+  RedisInstanceClass:
+    Type: String
+    Default: cache.t3.micro
+  VPCStackName:
+    Description: Name of the ECS cluster stack to deploy to
+    Type: String
+    Default: demo-stack-VpcStack-
+Resources:
+  Redis:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      AutoMinorVersionUpgrade: true
+      CacheParameterGroupName: default.redis6.x
+      CacheNodeType: !Ref RedisInstanceClass
+      CacheSubnetGroupName:  !Ref RedisSubnetGroup
+      Engine: redis
+      EngineVersion: "6.x"
+      NumNodeGroups: 1
+      Port: 6379
+      ReplicasPerNodeGroup: 1
+      ReplicationGroupDescription: Sample Redis group for scaling
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Redis subnet group
+      SubnetIds:
+        - Fn::ImportValue:
+            !Sub "${VPCStackName}-PrivateSubnetAz1"
+        - Fn::ImportValue:
+            !Sub "${VPCStackName}-PrivateSubnetAz2"
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${VPCStackName}-VpcId"
+      GroupDescription: Enable Redis access 
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          CidrIp:
+            Fn::ImportValue:
+              !Sub "${VPCStackName}-VpcCidr"
+Outputs:
+
+
+  StackName:
+    Description: Redis nested stack name
+    Value: !Sub "${AWS::StackName}"
+
+  RedisClusterAddress:
+    Description: The address of the Redis group.
+    Value: !GetAtt Redis.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-RedisAddress"

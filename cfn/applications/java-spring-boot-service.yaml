@@ -1,0 +1,280 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create Spring Boot applications on ECS Fargate with Redis Caching.
+
+Parameters:
+
+  InfraStackName:
+    Description: Name of the Infrastructure stack name that export required input parameters.
+    Type: String
+    Default: infra-stack
+
+  ServiceName:
+    Description: The name of the service.
+    Type: String
+    Default: java-spring-boot
+
+  ContainerImageTag:
+    Type: String
+    Description: The tag name of the image to be deployed
+    Default: 1.0
+
+  ContainerPort:
+    Description: Container port to be used
+    Type: String
+    Default: 8080
+
+  DesiredCount:
+    Description: The number of tasks to run in this cluster when first deployed
+    Type: Number
+    Default: 1
+
+  MinContainers:
+    Description: The minimum number of containers that we will scale down to
+    Type: Number
+    Default: 1
+
+  MaxContainers:
+    Description: The maximum number of containers that we will scale up to
+    Type: Number
+    Default: 10
+
+  AutoScalingCpuTargetValue:
+    Description: The average CPU utilisation before autoscaling will take effect
+    Type: Number
+    Default: 50
+
+  TaskCpu:
+    Description: The number of cpu units used by the task
+    Type: Number
+    Default: 512
+
+  TaskMemory:
+    Description: The amount (in MiB) of memory used by the task.
+    Type: Number
+    Default: 1024
+
+Resources:
+  TaskDefinition:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Image: !Join ['', [ Fn::ImportValue: !Sub "${InfraStackName}-RepositoryUri", !Sub ":${ContainerImageTag}"]]
+          Name:  !Sub "${AWS::StackName}-${ServiceName}"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              "awslogs-group" : !Ref TaskDefinitionLogGroup
+              "awslogs-region" : !Ref AWS::Region
+              "awslogs-stream-prefix" : !Sub "${AWS::StackName}-${ServiceName}"
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Environment:
+            - Name: spring.profiles.active
+              Value: cloud
+            - Name: REDIS_ADDRESS
+              Value:
+                Fn::ImportValue:
+                  !Sub "${InfraStackName}-RedisAddress"
+      Cpu: !Ref TaskCpu
+      Family: !Sub "${AWS::StackName}-${ServiceName}"
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: loggroup-policy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:BatchGetImage"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+        - PolicyName: ssm-policy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ssm:GetParameters"
+                  - "ssm:GetParametersByPath"
+                  - "secretsmanager:GetSecretValue"
+                  - "kms:Decrypt"
+                Resource: "*"
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: ssm-policy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ssm:GetParameters"
+                  - "ssm:GetParametersByPath"
+                  - "secretsmanager:GetSecretValue"
+                  - "kms:Decrypt"
+                Resource: "*"
+  TaskDefinitionLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "${AWS::StackName}-${ServiceName}-logs"
+      RetentionInDays: 7
+
+  LoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn:
+        Fn::ImportValue:
+          !Sub "${InfraStackName}-LoadBalancerListener"
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          Values:
+          - '*'
+      Actions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${InfraStackName}-VpcId"
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      Matcher:
+        HttpCode: 200,301,302,304,404
+      HealthCheckIntervalSeconds: 20
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 2
+
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "${AWS::StackName}-${ServiceName}-${ContainerPort}"
+      Cluster:
+        Fn::ImportValue:
+          !Sub "${InfraStackName}-EcsClusterName"
+      LaunchType: FARGATE
+      PlatformVersion: 1.4.0
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: True
+          Rollback: True
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref TaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ServiceSG
+          Subnets:
+            - Fn::ImportValue:
+                !Sub "${InfraStackName}-PublicSubnetAz1"
+            - Fn::ImportValue:
+                !Sub "${InfraStackName}-PublicSubnetAz2"
+      LoadBalancers:
+        - ContainerName: !Sub "${AWS::StackName}-${ServiceName}"
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+  ServiceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${InfraStackName}-VpcId"
+      GroupDescription: SGP for Cluster
+      SecurityGroupIngress:
+        - SourceSecurityGroupId:
+            Fn::ImportValue:
+              !Sub "${InfraStackName}-LoadBalancerSecurityGroup"
+          IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ['', [ !Sub "${AWS::StackName}-${ServiceName}", AutoScalingRole]]
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ecs-autoscaling
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ecs:DescribeServices"
+                  - "ecs:UpdateService"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "cloudwatch:DescribeAlarms"
+                  - "cloudwatch:PutMetricAlarm"
+                Resource: "*"
+
+  AutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinContainers
+      MaxCapacity: !Ref MaxContainers
+      ResourceId: 
+        Fn::Join:
+          - "/"
+          - - "service"
+            - Fn::ImportValue: 
+                !Sub "${InfraStackName}-EcsClusterName"
+            - !GetAtt Service.Name
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt AutoScalingRole.Arn
+      
+  AutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Join ['', [!Sub "${AWS::StackName}-${ServiceName}", AutoScalingPolicy]]
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 300
+        TargetValue: !Ref AutoScalingCpuTargetValue

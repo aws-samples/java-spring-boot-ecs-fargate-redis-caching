@@ -1,0 +1,55 @@
+{
+  "Cluster": "arn:aws:ecs:eu-north-1:000000000000:cluster/ecs-cluster-with-redis",
+  "TaskARN": "arn:aws:ecs:eu-north-1:000000000000:task/ecs-cluster-with-redis/59f5462970184d6ca2fdb96af2f22f14",
+  "Family": "redis-service",
+  "Revision": "4",
+  "DesiredStatus": "RUNNING",
+  "KnownStatus": "RUNNING",
+  "Limits": { "CPU": 0.5, "Memory": 1024 },
+  "PullStartedAt": "2021-08-27T14:20:44.87862853Z",
+  "PullStoppedAt": "2021-08-27T14:20:57.265612866Z",
+  "AvailabilityZone": "eu-north-1a",
+  "Containers": [
+    {
+      "DockerId": "59f5462970184d6ca2fdb96af2f22f14-3912057822",
+      "Name": "redis-service",
+      "DockerName": "redis-service",
+      "Image": "000000000000.dkr.ecr.eu-north-1.amazonaws.com/ecs-cluster-with-redis:latest",
+      "ImageID": "sha256:e7b711e805a308317fba8559a66a923befac537c8ae091fab2dac29955f5706d",
+      "Labels": {
+        "com.amazonaws.ecs.cluster": "arn:aws:ecs:eu-north-1:000000000000:cluster/ecs-cluster-with-redis",
+        "com.amazonaws.ecs.container-name": "redis-service",
+        "com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-north-1:000000000000:task/ecs-cluster-with-redis/59f5462970184d6ca2fdb96af2f22f14",
+        "com.amazonaws.ecs.task-definition-family": "redis-service",
+        "com.amazonaws.ecs.task-definition-version": "4"
+      },
+      "DesiredStatus": "RUNNING",
+      "KnownStatus": "RUNNING",
+      "Limits": { "CPU": 2 },
+      "CreatedAt": "2021-08-27T14:20:59.908056977Z",
+      "StartedAt": "2021-08-27T14:20:59.908056977Z",
+      "Type": "NORMAL",
+      "Networks": [
+        {
+          "NetworkMode": "awsvpc",
+          "IPv4Addresses": ["10.84.16.10"],
+          "AttachmentIndex": 0,
+          "MACAddress": "06:f3:43:93:66:2c",
+          "IPv4SubnetCIDRBlock": "10.84.16.0/23",
+          "DomainNameServers": ["10.84.0.2"],
+          "DomainNameSearchList": ["DomainNameDNS_1"],
+          "PrivateDNSName": "ip-10-84-16-10.eu-north-1.compute.internal",
+          "SubnetGatewayIpv4Address": "10.84.16.1/23"
+        }
+      ],
+      "ContainerARN": "arn:aws:ecs:eu-north-1:000000000000:container/ecs-cluster-with-redis/59f5462970184d6ca2fdb96af2f22f14/15ae5809-006b-4c2e-9a10-f502011996dd",
+      "LogOptions": {
+        "awslogs-group": "redis-service-logs",
+        "awslogs-region": "eu-north-1",
+        "awslogs-stream": "redis-service/redis-service/59f5462970184d6ca2fdb96af2f22f14"
+      },
+      "LogDriver": "awslogs"
+    }
+  ],
+  "LaunchType": "FARGATE"
+}

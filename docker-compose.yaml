@@ -1,0 +1,20 @@
+version: "3.9"
+services:
+  web:
+    build: .
+    environment: 
+      - REDIS_PORT=6379
+      - REDIS_ADDRESS=redis
+      - ECS_CONTAINER_METADATA_URI_V4=http://fargate_metadata
+    ports:
+      - "8080:8080"
+    depends_on: 
+      - fargate_metadata
+      - redis
+  fargate_metadata:
+    image: nginx:1.21.1-alpine
+    volumes:
+    - ./utils/fargate_metadata.json:/usr/share/nginx/html/fargate_metadata.json:ro
+    - ./utils/nginx.conf:/etc/nginx/nginx.conf:ro
+  redis:
+    image: "redis:6.2.1-alpine"
